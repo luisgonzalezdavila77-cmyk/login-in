@@ -1,0 +1,409 @@
+# 📍 SOLUCIÓN DETALLADA - UBICACIÓN Y CAMBIOS EXACTOS
+
+---
+
+## ❌ ERROR #1: Función con nombre incorrecto
+
+### 📂 Carpeta: `src/services/`
+### 📄 Archivo: `reservation.service.js`
+
+### ¿Cuál fue el problema?
+La función se llamaba `getReservation` (singular), pero en otros archivos se importaba como `getReservations` (plural). Esto causaba que la función no se encontrara.
+
+### 🔴 CÓDIGO ANTES (Incorrecto):
+```javascript
+import { http } from "@/api/http";
+
+export const getReservation = () =>    // ❌ SINGULAR - INCORRECTO
+  http.get("/reservations");
+
+export const createReservation = (data) =>
+  http.post("/reservations", data);
+```
+
+### 🟢 CÓDIGO DESPUÉS (Correcto):
+```javascript
+import { http } from "@/api/http";
+
+export const getReservations = () =>   // ✅ PLURAL - CORRECTO
+  http.get("/reservations");
+
+export const createReservation = (data) =>
+  http.post("/reservations", data);
+```
+
+### 📍 Línea exacta: Línea 3
+### ✏️ Cambio exacto: 
+```
+getReservation    →    getReservations
+   (singular)            (plural)
+```
+
+### 🔗 ¿Por qué se importa así?
+En `src/controllers/home.controller.js` la importación es:
+```javascript
+import { getReservations } from "@services/reservation.service";
+```
+**Si el nombre no coincide, la aplicación falla.**
+
+---
+
+## ❌ ERROR #2: Código redundante - Asignación duplicada
+
+### 📂 Carpeta: `src/controllers/`
+### 📄 Archivo: `home.controller.js`
+
+### ¿Cuál fue el problema?
+Había dos asignaciones iguales (`innerHTML = innerHTML =`), lo que es código duplicado innecesario.
+
+### 🔴 CÓDIGO ANTES (Incorrecto):
+```javascript
+import ReservationCard from "@components/ReservationCard";
+import { getReservations } from "@services/reservation.service";
+import { getSession } from "@/utils";
+
+export const homeController = async () => {
+  const container = document.querySelector("#reservationsContainer");
+
+  const user = getSession();
+
+  const reservations = await getReservations();
+
+  const filteredReservations =
+    user.role === "admin"
+      ? reservations
+      : reservations.filter((reservation) => reservation.userId === user.id);
+
+  // ❌ PROBLEMA: "innerHTML = innerHTML =" es redundante
+  container.innerHTML = container.innerHTML = filteredReservations?.length
+    ? filteredReservations
+        .map((reservation) => ReservationCard(reservation))
+        .join("")
+    : `
+      <div class="w-full text-center py-8 col-span-2">
+        <p class="text-slate-500">
+          No hay reservas disponibles
+        </p>
+      </div>
+    `;
+};
+```
+
+### 🟢 CÓDIGO DESPUÉS (Correcto):
+```javascript
+import ReservationCard from "@components/ReservationCard";
+import { getReservations } from "@services/reservation.service";
+import { getSession } from "@/utils";
+
+export const homeController = async () => {
+  const container = document.querySelector("#reservationsContainer");
+
+  const user = getSession();
+
+  const reservations = await getReservations();
+
+  const filteredReservations =
+    user.role === "admin"
+      ? reservations
+      : reservations.filter((reservation) => reservation.userId === user.id);
+
+  // ✅ SOLUCIÓN: Solo una asignación de innerHTML
+  container.innerHTML = filteredReservations?.length
+    ? filteredReservations
+        .map((reservation) => ReservationCard(reservation))
+        .join("")
+    : `
+      <div class="w-full text-center py-8 col-span-2">
+        <p class="text-slate-500">
+          No hay reservas disponibles
+        </p>
+      </div>
+    `;
+};
+```
+
+### 📍 Línea exacta: Línea 19
+### ✏️ Cambio exacto:
+```javascript
+// ❌ ANTES
+container.innerHTML = container.innerHTML = filteredReservations?.length
+
+// ✅ DESPUÉS
+container.innerHTML = filteredReservations?.length
+```
+
+### ¿Por qué se eliminó?
+- Se asignaba el valor dos veces innecesariamente
+- Código más limpio y legible
+- Mejora de rendimiento (una operación menos)
+
+---
+
+## ❌ ERROR #3: Logout sin limpiar la sesión (SEGURIDAD)
+
+### 📂 Carpeta: `src/components/`
+### 📄 Archivo: `Sidebar.js`
+
+### ¿Cuál fue el problema?
+Cuando el usuario hacía logout, los datos se guardaban en `localStorage` pero **NO se borraban**. Esto significa que si otro usuario accedía a la misma computadora, podría ver los datos del usuario anterior.
+
+### 🔴 CÓDIGO ANTES (Inseguro):
+```javascript
+import { removeSession } from "@/utils";
+import { navigateTo } from "@/router/router";
+
+export default function Sidebar() {
+  setTimeout(() => {
+    document
+      .querySelector("#logoutBtn")
+      ?.addEventListener("click", () => {
+        // ❌ PROBLEMA: Solo navega al login, pero NO limpia localStorage
+        navigateTo("/");
+      });
+  });
+
+  return `
+    <aside
+      class="w-64 bg-slate-900 text-white h-screen p-5"
+    >
+      <h2 class="text-2xl font-bold mb-8">
+        SPA Base
+      </h2>
+
+      <nav class="flex flex-col gap-4">
+
+        <a href="/home" class="px-3 py-1 bg-gray-500 rounded-xl" data-link>
+          Home
+        </a>
+
+        <button
+          id="logoutBtn"
+          class="text-left cursor-pointer text-red-400 hover:text-white hover:bg-red-400 px-3 py-1 rounded-xl"
+        >
+          Cerrar sesión
+        </button>
+
+      </nav>
+
+    </aside>
+  `;
+}
+```
+
+### 🟢 CÓDIGO DESPUÉS (Seguro):
+```javascript
+import { removeSession } from "@/utils";
+import { navigateTo } from "@/router/router";
+
+export default function Sidebar() {
+  setTimeout(() => {
+    document
+      .querySelector("#logoutBtn")
+      ?.addEventListener("click", () => {
+        // ✅ SOLUCIÓN 1: Primero limpia la sesión de localStorage
+        removeSession();
+        // ✅ SOLUCIÓN 2: Luego navega al login
+        navigateTo("/");
+      });
+  });
+
+  return `
+    <aside
+      class="w-64 bg-slate-900 text-white h-screen p-5"
+    >
+      <h2 class="text-2xl font-bold mb-8">
+        SPA Base
+      </h2>
+
+      <nav class="flex flex-col gap-4">
+
+        <a href="/home" class="px-3 py-1 bg-gray-500 rounded-xl" data-link>
+          Home
+        </a>
+
+        <button
+          id="logoutBtn"
+          class="text-left cursor-pointer text-red-400 hover:text-white hover:bg-red-400 px-3 py-1 rounded-xl"
+        >
+          Cerrar sesión
+        </button>
+
+      </nav>
+
+    </aside>
+  `;
+}
+```
+
+### 📍 Línea exacta: Línea 9 (dentro del addEventListener)
+### ✏️ Cambio exacto:
+```javascript
+// ❌ ANTES
+document
+  .querySelector("#logoutBtn")
+  ?.addEventListener("click", () => {
+    navigateTo("/");
+  });
+
+// ✅ DESPUÉS
+document
+  .querySelector("#logoutBtn")
+  ?.addEventListener("click", () => {
+    removeSession();  // ← AÑADIDA ESTA LÍNEA
+    navigateTo("/");
+  });
+```
+
+### 🔐 ¿Qué hace removeSession()?
+Se encuentra en `src/utils.js`:
+```javascript
+export const removeSession = () => {
+  localStorage.removeItem("user");  // Borra los datos del usuario
+};
+```
+
+### ⚠️ Impacto de seguridad:
+- **ANTES**: Los datos del usuario quedaban en `localStorage` → ¡Riesgo de seguridad!
+- **DESPUÉS**: Se limpian los datos automáticamente → ✅ Seguro
+
+---
+
+## ❌ ERROR #4: Rutas no protegidas (Autenticación)
+
+### 📂 Carpeta: `src/router/`
+### 📄 Archivo: `router.js`
+
+### ¿Cuál fue el problema?
+Cualquier persona podía escribir `/home` en la URL y acceder sin estar logueada. No había validación de autenticación.
+
+### 🔴 CÓDIGO ANTES (Desprotegido):
+```javascript
+import loginView from "@/views/loginView";
+import homeView from "@/views/homeView";
+import { isAuthenticated } from "@/utils";
+
+const routes = {
+  "/": loginView,
+  "/home": homeView,
+};
+
+export const navigateTo = (path) => {
+  history.pushState({}, "", path);
+  router();
+};
+
+export const router = () => {
+  const app = document.querySelector("#app");
+
+  let path = window.location.pathname;
+
+  // ❌ PROBLEMA: No valida si el usuario está autenticado
+  // Cualquiera puede acceder a /home escribiendo la URL
+  const view = routes[path] || loginView;
+
+  app.innerHTML = view();
+};
+
+window.addEventListener("popstate", router);
+```
+
+### 🟢 CÓDIGO DESPUÉS (Protegido):
+```javascript
+import loginView from "@/views/loginView";
+import homeView from "@/views/homeView";
+import { isAuthenticated } from "@/utils";
+
+const routes = {
+  "/": loginView,
+  "/home": homeView,
+};
+
+export const navigateTo = (path) => {
+  history.pushState({}, "", path);
+  router();
+};
+
+export const router = () => {
+  const app = document.querySelector("#app");
+
+  let path = window.location.pathname;
+
+  // ✅ SOLUCIÓN: Verifica autenticación
+  // Si intenta acceder a /home sin estar logueado, lo redirige a /
+  if (path === "/home" && !isAuthenticated()) {
+    path = "/";
+  }
+
+  const view = routes[path] || loginView;
+
+  app.innerHTML = view();
+};
+
+window.addEventListener("popstate", router);
+```
+
+### 📍 Línea exacta: Entre línea 22 y 24
+### ✏️ Cambio exacto:
+Se añadió esta validación:
+```javascript
+// ✅ NUEVO CÓDIGO AÑADIDO
+if (path === "/home" && !isAuthenticated()) {
+  path = "/";
+}
+```
+
+### 🔍 ¿Cómo funciona?
+```javascript
+if (path === "/home" && !isAuthenticated())
+   └─────────────┬──────────┴──────────────┘
+   "¿Es la ruta   "¿El usuario NO
+    /home?"       está logueado?"
+    
+    SI AMBAS SON VERDADERAS → Cambiar path a "/"
+```
+
+### ¿Qué es isAuthenticated()?
+En `src/utils.js`:
+```javascript
+export const isAuthenticated = () => {
+  return !!getSession();  // Retorna true si hay sesión
+};
+```
+
+### 📊 Flujo de protección:
+
+```
+Usuario intenta acceder a /home
+         ↓
+¿Está autenticado?
+    ↙          ↘
+   SÍ          NO
+    ↓           ↓
+ /home    Redirige a /
+Carga    (login)
+```
+
+---
+
+## 📋 RESUMEN DE TODOS LOS CAMBIOS
+
+| # | Carpeta | Archivo | Línea | Cambio |
+|---|---------|---------|-------|--------|
+| 1 | `src/services/` | `reservation.service.js` | 3 | `getReservation` → `getReservations` |
+| 2 | `src/controllers/` | `home.controller.js` | 19 | Quitar `container.innerHTML =` (redundante) |
+| 3 | `src/components/` | `Sidebar.js` | 9 | Añadir `removeSession();` antes de `navigateTo()` |
+| 4 | `src/router/` | `router.js` | 22-24 | Añadir validación `if (path === "/home" && !isAuthenticated())` |
+
+---
+
+## ✅ VERIFICACIÓN
+
+Después de estos cambios:
+
+✅ Las funciones tienen nombres correctos y consistentes
+✅ El código está limpio sin redundancias
+✅ La sesión se borra correctamente al hacer logout
+✅ Las rutas protegidas solo se acceden estando autenticado
+✅ La aplicación es segura y funciona correctamente
+
+**Estado Final: 🚀 APLICACIÓN LISTA PARA USAR**
