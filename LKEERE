@@ -1,0 +1,571 @@
+# 📖 Explicación del Código - Fácil y Sencilla
+
+## ¿Qué es el sistema?
+
+El sistema LGC es una **aplicación web** donde:
+- Los usuarios pueden **crear reservas** de espacios (oficinas, salas, etc.)
+- Los administradores **controlan todo** (aprobar, rechazar, ver ganancias)
+- Los usuarios pueden **registrarse solos** sin que un admin lo haga
+
+---
+
+## 🏗️ Estructura Básica
+
+Imagina el código como una casa:
+
+```
+casa/
+├── paredes (vistas - lo que ves)
+├── tuberías (controladores - la lógica)
+├── electricidad (servicios - conexiones)
+├── puerta principal (router - navegación)
+└── base de datos (db.json - donde se guarda info)
+```
+
+---
+
+## 📂 Las Carpetas Principales
+
+### 1. **src/views/** - Lo que ves en pantalla
+
+Son las **páginas** de la aplicación:
+
+```
+registerView.js    ← Formulario para registrarse
+loginView.js       ← Formulario para iniciar sesión
+homeView.js        ← Dashboard (lo que ves después de login)
+notFound.js        ← Página de error 404
+```
+
+**Ejemplo simple** - `registerView.js`:
+```javascript
+// Es como un formulario en HTML
+// Tiene campos para: nombre, email, contraseña
+// Cuando envías el formulario, se llama registerController()
+```
+
+---
+
+### 2. **src/controllers/** - La lógica del programa
+
+Los controladores son el **cerebro** del sistema:
+
+```
+register.controller.js  ← Lógica para registrarse
+login.controller.js     ← Lógica para login
+home.controller.js      ← Lógica de reservas y panel
+```
+
+**Ejemplo: `registerController.js`**
+```javascript
+// Cuando el usuario presiona "Crear Cuenta":
+
+1. Obtiene los datos del formulario (nombre, email, password)
+2. Verifica que email NO exista ya (validación)
+3. Verifica que passwords sean iguales (validación)
+4. Si todo está bien:
+   - Crea el usuario en la base de datos
+   - Muestra mensaje "¡Éxito!"
+   - Lo lleva a la página de login
+5. Si hay error:
+   - Muestra mensaje de error
+   - Deja el formulario abierto para corregir
+```
+
+---
+
+### 3. **src/components/** - Partes reutilizables
+
+Los componentes son **bloques** que se reutilizan:
+
+```
+UserManagement.js     ← Tabla de usuarios (para admin)
+ReservationCard.js    ← Tarjeta de una reserva
+AdminDashboard.js     ← Panel con estadísticas
+Sidebar.js            ← Menú lateral
+```
+
+**Ejemplo: `UserManagement.js`**
+```javascript
+// Mostrar tabla de usuarios:
+
+1. Obtiene lista de TODOS los usuarios
+2. Crea una tabla con: ID, Nombre, Email, Rol
+3. Agrega botón "Eliminar" a cada usuario
+4. Solo lo ve el admin (si eres usuario normal no aparece)
+```
+
+---
+
+### 4. **src/services/** - Conexión a la base de datos
+
+Los servicios **hablan con la base de datos**:
+
+```
+reservation.service.js  ← CRUD de reservas (Create, Read, Update, Delete)
+```
+
+**Ejemplo simple**:
+```javascript
+// Funciones para reservas:
+getReservations()    // Obtiene todas las reservas
+createReservation()  // Crea una nueva
+updateReservation()  // Modifica una existente
+deleteReservation()  // Elimina una
+```
+
+---
+
+### 5. **src/api/** - Comunicación con el servidor
+
+```
+http.js  ← Envía peticiones al servidor (GET, POST, DELETE)
+```
+
+**Imagina que es el cartero**:
+- `http.get()` = "Trae información"
+- `http.post()` = "Envía información nueva"
+- `http.delete()` = "Elimina información"
+
+---
+
+### 6. **src/router/** - Navegación
+
+```
+router.js  ← Controla qué página ver según la URL
+```
+
+**Ejemplo**:
+```
+URL: localhost:5173/register  → Muestra registerView
+URL: localhost:5173/login     → Muestra loginView
+URL: localhost:5173/home      → Muestra homeView (si estás logeado)
+URL: otra ruta                → Muestra página 404
+```
+
+---
+
+## 🔄 Flujo de Registro (Paso a Paso)
+
+### Usuario quiere registrarse:
+
+```
+1. Usuario abre localhost:5173/register
+   ↓
+2. Ve formulario con campos:
+   - Nombre
+   - Email
+   - Contraseña
+   - Confirmar contraseña
+   ↓
+3. Llena el formulario y presiona "Crear Cuenta"
+   ↓
+4. registerController() se ejecuta:
+   - ¿El email ya existe? 
+     → SÍ: Muestra error "Email ya registrado"
+     → NO: Continúa
+   - ¿Las contraseñas son iguales?
+     → NO: Muestra error "Las contraseñas no coinciden"
+     → SÍ: Continúa
+   - ¿Contraseña tiene 6+ caracteres?
+     → NO: Muestra error "Mínimo 6 caracteres"
+     → SÍ: Continúa
+   ↓
+5. Todo válido → Crea usuario en db.json
+   ↓
+6. Muestra "¡Cuenta creada! Ve a login"
+   ↓
+7. Te lleva automáticamente a /login
+   ↓
+8. Ahora puedes logearte con tu email y contraseña
+```
+
+---
+
+## 👥 Flujo de Gestión de Usuarios (Admin)
+
+### El admin quiere ver y eliminar usuarios:
+
+```
+1. Admin abre localhost:5173/home
+   ↓
+2. El homeView.js se ejecuta:
+   - Comprueba si el usuario es admin
+   - SÍ es admin → Muestra UserManagement
+   - NO es admin → No muestra nada
+   ↓
+3. UserManagement.js trae la lista de usuarios:
+   - http.get("/users") → Trae todos los usuarios
+   - Crea tabla con datos
+   - Agrega botón "Remove" a cada usuario
+   ↓
+4. Admin ve tabla con todos los usuarios registrados
+   ↓
+5. Admin presiona botón "Remove" de un usuario
+   ↓
+6. setupDeleteUserButtons() se ejecuta:
+   - Pregunta: "¿Estás seguro?"
+   - SÍ → Ejecuta DELETE /users/{id}
+   - NO → Cancela
+   ↓
+7. Si confirma:
+   - Usuario eliminado de db.json
+   - Tabla se actualiza automáticamente
+   - Contador de usuarios disminuye
+```
+
+---
+
+## 🗄️ Base de Datos (db.json)
+
+### Tabla de Usuarios
+
+```json
+{
+  "users": [
+    {
+      "id": "1",
+      "name": "Administrador",
+      "email": "admin@test.com",
+      "password": "A123456",
+      "role": "admin"
+    },
+    {
+      "id": "1685891234567",
+      "name": "Juan Pérez",
+      "email": "juan@example.com",
+      "password": "A123456",
+      "role": "user"
+    }
+  ]
+}
+```
+
+**Campos**:
+- `id`: Número único del usuario
+- `name`: Nombre del usuario
+- `email`: Email (no puede repetirse)
+- `password`: Contraseña (guardada en texto plano - no recomendado en producción)
+- `role`: "admin" o "user"
+
+### Tabla de Reservas
+
+```json
+{
+  "reservations": [
+    {
+      "id": "1",
+      "userId": "1",
+      "workspace": "Oficina 1",
+      "date": "2026-06-10",
+      "startHour": "09:00",
+      "endHour": "12:00",
+      "reason": "Reunión con cliente",
+      "status": "pending",
+      "spaceType": "oficina",
+      "price": "290.000"
+    }
+  ]
+}
+```
+
+**Campos**:
+- `id`: Número único
+- `userId`: Quién reserva
+- `workspace`: Qué espacio
+- `date`: Qué fecha
+- `startHour` / `endHour`: Horarios
+- `reason`: Por qué
+- `status`: pending/approved/rejected
+- `spaceType`: tipo de espacio
+- `price`: precio por día
+
+---
+
+## 🔑 Conceptos Clave Explicados
+
+### ¿Qué es setTimeout()?
+```javascript
+setTimeout(() => {
+  homeController();
+}, 0);
+```
+
+**Traducción**: "Espera un momentito y luego ejecuta homeController()"
+
+**¿Por qué?** Porque primero necesita mostrar el HTML en la pantalla, y luego agregar los eventos (botones, clics, etc.)
+
+---
+
+### ¿Qué es async/await?
+```javascript
+async function obtenerUsuarios() {
+  const usuarios = await http.get("/users");
+  // Aquí tengo los usuarios
+}
+```
+
+**Traducción**: "Espera a que termine la petición del servidor antes de continuar"
+
+**¿Por qué?** Porque la internet es lenta. No puedes procesar datos que aún no has recibido.
+
+---
+
+### ¿Qué es el rol (role)?
+
+```javascript
+if (user.role === "admin") {
+  // Muestra cosas de admin
+} else {
+  // Muestra cosas normales
+}
+```
+
+**Admin** = Acceso total (ve usuarios, puede eliminar, aprueba reservas)
+**User** = Acceso limitado (solo ve sus reservas, crea nuevas)
+
+---
+
+### ¿Qué es localStorage?
+
+```javascript
+// Guardar en el navegador
+localStorage.setItem("user", JSON.stringify(usuario));
+
+// Obtener del navegador
+const usuario = JSON.parse(localStorage.getItem("user"));
+```
+
+**¿Para qué?** Para que el usuario siga logeado aunque cierre el navegador
+
+---
+
+## 📝 Las Rutas (URLs)
+
+```
+/                → Página de login (si no estás logeado)
+/login           → Página de login
+/register        → Página para registrarse
+/home            → Dashboard (necesitas estar logeado)
+/404             → Página no encontrada
+```
+
+**Importante**: Estas son URLs internas. No hay recarga de página. Es una **SPA** (Single Page Application).
+
+---
+
+## 🔐 Sistema de Autenticación
+
+### Login (inicio de sesión):
+
+```
+1. Usuario entra email y contraseña
+   ↓
+2. loginController() verifica:
+   - ¿Existe el email en db.json?
+   - ¿La contraseña es correcta?
+   ↓
+3. SÍ correcto:
+   - Guarda datos del usuario en localStorage
+   - Lo lleva a /home
+   ↓
+4. NO es correcto:
+   - Muestra error "Email o contraseña incorrectos"
+```
+
+### Verificación en cada página:
+
+```javascript
+const isAuthenticated = () => {
+  return !!localStorage.getItem("user");
+};
+
+// Si no está logeado → lleva a /login
+if (!isAuthenticated()) {
+  navigateTo("/login");
+}
+```
+
+---
+
+## 🎨 Las Vistas (Views)
+
+### registerView.js
+
+```
+┌─────────────────────────────────┐
+│  LGC Reserva de Oficinas        │
+│  Create a new account           │
+│                                 │
+│ Full Name: [____________]       │
+│ Email: [____________]           │
+│ Password: [____________]        │
+│ Confirm Password: [____________]│
+│                                 │
+│ [Create Account]                │
+│                                 │
+│ Already have an account?        │
+│ Sign in                         │
+└─────────────────────────────────┘
+```
+
+---
+
+### homeView.js (Para Admin)
+
+```
+┌────────────────────────────────────────────┐
+│ SIDEBAR | Dashboard                        │
+│         │ Bienvenido Admin                 │
+│         │ Rol: Administrador               │
+│         │                                  │
+│         │ ┌─────────────────────────────┐ │
+│         │ │ Admin Panel                  │ │
+│         │ └─────────────────────────────┘ │
+│         │                                  │
+│         │ ┌─────────────────────────────┐ │
+│         │ │ DASHBOARD (estadísticas)    │ │
+│         │ │ • Salas Reservadas: 5       │ │
+│         │ │ • Dinero: $1.450.000        │ │
+│         │ │ • Pendientes: 2             │ │
+│         │ └─────────────────────────────┘ │
+│         │                                  │
+│         │ ┌─────────────────────────────┐ │
+│         │ │ REGISTERED USERS            │ │
+│         │ │ ID | Name | Email | Remove  │ │
+│         │ │ 1  | Juan | j@... | [X]     │ │
+│         │ │ 2  | María| m@... | [X]     │ │
+│         │ └─────────────────────────────┘ │
+│         │                                  │
+│         │ ┌─────────────────────────────┐ │
+│         │ │ RESERVAS                    │ │
+│         │ │ [+ Nueva Reserva]           │ │
+│         │ │                             │ │
+│         │ │ [Tarjeta Reserva 1]         │ │
+│         │ │ [Tarjeta Reserva 2]         │ │
+│         │ └─────────────────────────────┘ │
+└────────────────────────────────────────────┘
+```
+
+---
+
+## 💾 Funciones Importantes
+
+### En registerController.js
+
+```javascript
+// 1. Obtiene datos del formulario
+const data = Object.fromEntries(formData);
+// Resultado: { name: "Juan", email: "j@test.com", password: "A123456" }
+
+// 2. Verifica que no exista el email
+const users = await http.get("/users");
+const emailExists = users.some(u => u.email === data.email);
+
+// 3. Si no existe, crea nuevo usuario
+const newUser = {
+  id: Date.now().toString(),  // ID único basado en fecha
+  name: data.name,
+  email: data.email,
+  password: data.password,
+  role: "user"  // Siempre es "user", nunca "admin"
+};
+
+// 4. Lo envía a la base de datos
+await http.post("/users", newUser);
+```
+
+### En setupDeleteUserButtons() del home.controller.js
+
+```javascript
+// 1. Busca todos los botones con [data-remove-user]
+document.querySelectorAll("[data-remove-user]").forEach((btn) => {
+  // 2. Agrega evento de clic
+  btn.addEventListener("click", async (e) => {
+    const userId = btn.dataset.userId;  // Obtiene el ID del usuario
+    
+    // 3. Pregunta si está seguro
+    if (confirm(`¿Seguro que quieres eliminar a ${userEmail}?`)) {
+      // 4. Si dice que sí, lo elimina
+      await http.delete(`/users/${userId}`);
+      
+      // 5. Recarga la página para ver cambios
+      await homeController();
+    }
+  });
+});
+```
+
+---
+
+## 🎯 Resumen Rápido
+
+### Registro de Usuario
+1. Usuario va a `/register`
+2. Llena formulario
+3. `registerController()` valida datos
+4. Guarda en `db.json`
+5. Redirige a `/login`
+
+### Gestión de Usuarios (Admin)
+1. Admin va a `/home`
+2. `homeView()` detecta que es admin
+3. Muestra `UserManagement` component
+4. Obtiene usuarios con `http.get("/users")`
+5. Muestra tabla
+6. Admin presiona "Remove"
+7. `setupDeleteUserButtons()` ejecuta `http.delete()`
+8. Usuario eliminado y tabla actualizada
+
+### Login
+1. Usuario entra email y contraseña
+2. `loginController()` valida
+3. Guarda en `localStorage`
+4. Redirige a `/home`
+
+---
+
+## ❓ Preguntas Frecuentes
+
+### ¿Dónde se guardan los datos?
+En `db.json` - Es un archivo JSON que actúa como base de datos
+
+### ¿Qué pasa si cierno el navegador?
+Tus datos quedan en `localStorage` - Sigues logeado
+
+### ¿Puedo tener dos usuarios con el mismo email?
+NO - El sistema verifica que sea único
+
+### ¿Qué es "role"?
+Es el tipo de usuario: "admin" o "user"
+
+### ¿Puede un usuario normal eliminar otros usuarios?
+NO - La opción de eliminar solo aparece si eres admin
+
+### ¿Las contraseñas están seguras?
+NO - Están guardadas en texto plano. En producción se deben encriptar
+
+---
+
+## 🚀 Ahora Entiendes
+
+✅ Cómo funciona el registro
+✅ Cómo funciona la gestión de usuarios
+✅ Cómo está organizado el código
+✅ Cómo fluye la información
+✅ Cómo se guarda todo en la base de datos
+
+---
+
+## 📚 Para Aprender Más
+
+- Ve a **USER_REGISTRATION_GUIDE.md** para más detalles
+- Ve a **README.md** para documentación técnica
+- Lee los archivos `.js` en `src/` (están comentados)
+
+---
+
+**¡Ya entiendes cómo funciona el código!** 🎉
+
+Si tienes dudas sobre una parte específica, pregunta y te lo explico aún más simple.
+
