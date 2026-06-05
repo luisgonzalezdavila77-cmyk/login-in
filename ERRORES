@@ -1,0 +1,144 @@
+# 📋 Documento de Reparación de Errores
+
+## Resumen
+Se identificaron y corrigieron **4 errores críticos** en la aplicación de reservas de espacios.
+
+---
+
+## 🐛 Error #1: Nombre incorrecto de función
+**Archivo:** `src/services/reservation.service.js`
+
+**Problema:**
+```javascript
+// ❌ ANTES
+export const getReservation = () =>
+  http.get("/reservations");
+```
+La función se llamaba `getReservation` (singular) pero se importaba como `getReservations` (plural) en el controlador.
+
+**Solución:**
+```javascript
+// ✅ DESPUÉS
+export const getReservations = () =>
+  http.get("/reservations");
+```
+
+**Por qué importa:**
+- El controlador `home.controller.js` importa `getReservations` (plural)
+- Si los nombres no coinciden, la función no se encuentra y la app falla al cargar reservas
+
+---
+
+## 🐛 Error #2: Asignación duplicada de innerHTML
+**Archivo:** `src/controllers/home.controller.js`
+
+**Problema:**
+```javascript
+// ❌ ANTES (línea 19)
+container.innerHTML = container.innerHTML = filteredReservations?.length
+```
+Hay una asignación duplicada que no afecta la funcionalidad pero es código redundante.
+
+**Solución:**
+```javascript
+// ✅ DESPUÉS
+container.innerHTML = filteredReservations?.length
+```
+
+**Por qué importa:**
+- Código limpio y mantenible
+- Evita confusiones al revisar el código
+- Mejora el rendimiento (una asignación en lugar de dos)
+
+---
+
+## 🐛 Error #3: Logout no limpia la sesión
+**Archivo:** `src/components/Sidebar.js`
+
+**Problema:**
+```javascript
+// ❌ ANTES
+document
+  .querySelector("#logoutBtn")
+  ?.addEventListener("click", () => {
+    navigateTo("/");  // Solo navega, no limpia sesión
+  });
+```
+El usuario hace logout pero los datos siguen en `localStorage`, lo que permite acceso no autorizado.
+
+**Solución:**
+```javascript
+// ✅ DESPUÉS
+document
+  .querySelector("#logoutBtn")
+  ?.addEventListener("click", () => {
+    removeSession();  // Limpia localStorage
+    navigateTo("/");  // Luego navega al login
+  });
+```
+
+**Por qué importa:**
+- **Seguridad**: Sin limpiar la sesión, otro usuario podría acceder con los datos del anterior
+- **Integridad**: La aplicación debe eliminar datos personales al cerrar sesión
+
+---
+
+## 🐛 Error #4: Falta de protección de rutas
+**Archivo:** `src/router/router.js`
+
+**Problema:**
+```javascript
+// ❌ ANTES
+export const router = () => {
+  const app = document.querySelector("#app");
+  let path = window.location.pathname;
+  const view = routes[path] || loginView;
+  app.innerHTML = view();
+};
+```
+Sin autenticación, cualquiera puede acceder a `/home` escribiendo la URL directamente.
+
+**Solución:**
+```javascript
+// ✅ DESPUÉS
+export const router = () => {
+  const app = document.querySelector("#app");
+  let path = window.location.pathname;
+
+  // Proteger ruta /home si no está autenticado
+  if (path === "/home" && !isAuthenticated()) {
+    path = "/";
+  }
+
+  const view = routes[path] || loginView;
+  app.innerHTML = view();
+};
+```
+
+**Por qué importa:**
+- **Autenticación**: Solo usuarios logueados acceden a `/home`
+- **Seguridad**: Previene acceso directo a rutas protegidas
+- **UX**: Redirige automáticamente al login si la sesión expira
+
+---
+
+## 📊 Tabla de cambios
+
+| Error | Archivo | Línea | Tipo | Severidad |
+|-------|---------|-------|------|-----------|
+| #1 | `reservation.service.js` | 3 | Nombre incorrecto | 🔴 Alta |
+| #2 | `home.controller.js` | 19 | Código redundante | 🟡 Baja |
+| #3 | `Sidebar.js` | 9 | Seguridad | 🔴 Alta |
+| #4 | `router.js` | 16-20 | Autenticación | 🔴 Alta |
+
+---
+
+## ✅ Verificación final
+
+Todos los errores han sido corregidos:
+- ✅ Las funciones tienen nombres consistentes
+- ✅ El código está limpio y sin redundancias
+- ✅ La sesión se limpia correctamente al logout
+- ✅ Las rutas están protegidas por autenticación
+
+**Estado:** Aplicación lista para probar ✨
