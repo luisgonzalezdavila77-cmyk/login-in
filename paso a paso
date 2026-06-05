@@ -1,0 +1,984 @@
+# 📚 GUÍA PASO A PASO - Sistema de Reservas
+
+## Tabla de Contenidos
+1. [Arquitectura General](#arquitectura-general)
+2. [Flujo de Login](#flujo-de-login)
+3. [Pantalla Principal (Home)](#pantalla-principal-home)
+4. [Crear Nueva Reserva](#crear-nueva-reserva)
+5. [Editar Reserva](#editar-reserva)
+6. [Aprobar/Rechazar Reserva (Solo Admin)](#aprobarrechazar-reserva-solo-admin)
+7. [Eliminar Reserva](#eliminar-reserva)
+8. [Estructura de Archivos](#estructura-de-archivos)
+
+---
+
+## Arquitectura General
+
+### 🏗️ Cómo funciona el sistema
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    NAVEGADOR DEL USUARIO                 │
+│  (http://localhost:5173)                                │
+└──────────────┬──────────────────────────────────────────┘
+               │
+               ▼
+┌─────────────────────────────────────────────────────────┐
+│              APLICACIÓN VITE (FRONTEND)                  │
+│  - Renderiza la interfaz gráfica                        │
+│  - Maneja eventos del usuario                           │
+│  - Comunica con la API                                  │
+└──────────────┬──────────────────────────────────────────┘
+               │
+               ▼ (llamadas HTTP)
+┌─────────────────────────────────────────────────────────┐
+│            JSON SERVER (BACKEND SIMULADO)                │
+│  (http://localhost:3001)                                │
+│  - Almacena datos en db.json                            │
+│  - Proporciona endpoints REST                           │
+└─────────────────────────────────────────────────────────┘
+```
+
+### 🔄 Flujo General
+
+1. **Usuario abre la aplicación** → Ve pantalla de login
+2. **Ingresa credenciales** → Se validan contra `/users`
+3. **Acceso aprobado** → Se guarda sesión en localStorage
+4. **Se redirige a /home** → Ve sus reservas
+5. **Usuario interactúa** → Puede crear, editar, eliminar, aprobar reservas
+6. **Cambios se guardan** → En la base de datos (db.json)
+7. **Vista se actualiza** → Sin recargar la página (SPA)
+
+---
+
+## Flujo de Login
+
+### 📱 Pantalla de Login
+
+```
+┌──────────────────────────────────────────┐
+│          SISTEMA DE RESERVAS             │
+├──────────────────────────────────────────┤
+│                                          │
+│  Email:    [______________]              │
+│  Contraseña: [______________]           │
+│                                          │
+│         [INICIAR SESIÓN]                │
+│                                          │
+└──────────────────────────────────────────┘
+```
+
+### 🔐 Paso a Paso del Login
+
+**Archivo:** `src/views/loginView.js` y `src/controllers/login.controller.js`
+
+#### Paso 1: Usuario ingresa credenciales
+```javascript
+// El usuario escribe en los campos:
+// Email: user@test.com
+// Contraseña: A123456
+```
+
+#### Paso 2: Se valida en la base de datos
+```javascript
+// El controlador hace una petición GET a:
+GET http://localhost:3001/users
+
+// Busca un usuario que coincida con:
+const user = users.find(u => 
+  u.email === "user@test.com" && 
+  u.password === "A123456"
+)
+```
+
+#### Paso 3: Se guarda la sesión
+```javascript
+// Si la credencial es correcta, se ejecuta:
+localStorage.setItem("session", JSON.stringify({
+  id: "2",
+  name: "Usuario",
+  role: "user",
+  email: "user@test.com"
+}))
+```
+
+#### Paso 4: Se redirige a /home
+```javascript
+// Usa History API para cambiar URL sin recargar:
+window.history.pushState({}, '', '/home')
+
+// El router detecta el cambio y renderiza homeView
+```
+
+---
+
+## Pantalla Principal (Home)
+
+### 🏠 Estructura Visual
+
+```
+┌───────────────────────────────────────────────────────────┐
+│ 🔗 SIDEBAR                      CONTENIDO PRINCIPAL        │
+│ ├─ 🏠 Home                    ┌────────────────────────┐   │
+│ ├─ 📝 Mis Reservas            │ Bienvenido Usuario     │   │
+│ └─ 🚪 Logout                  │                        │   │
+│                               │ Rol: Usuario           │   │
+│                               │                        │   │
+│                               │ PANEL USUARIO          │   │
+│                               │ Puedes ver, crear,     │   │
+│                               │ editar y eliminar tus  │   │
+│                               │ propias reservas...    │   │
+│                               │                        │   │
+│                               │ ═══════════════════════│   │
+│                               │ RESERVAS               │   │
+│                               │ [+ Nueva Reserva] ⬅️ NUEVO │
+│                               │                        │   │
+│                               │ ┌────────────────────┐ │   │
+│                               │ │ Sala A             │ │   │
+│                               │ │ Pendiente          │ │   │
+│                               │ │ Fecha: 2026-01-10  │ │   │
+│                               │ │ Horario: 09:00-10  │ │   │
+│                               │ │ Motivo: Reunión... │ │   │
+│                               │ │ [Editar][Eliminar] │ │   │
+│                               │ └────────────────────┘ │   │
+│                               └────────────────────────┘   │
+└───────────────────────────────────────────────────────────┘
+```
+
+### 📊 Flujo de carga de /home
+
+**Archivos involucrados:**
+- `src/views/homeView.js` - Define la estructura HTML
+- `src/controllers/home.controller.js` - Carga y gestiona datos
+- `src/components/ReservationCard.js` - Renderiza cada reserva
+
+#### Paso 1: Se carga la vista
+```javascript
+// homeView.js retorna HTML con:
+// 1. Sidebar con opciones de navegación
+// 2. Bienvenida personalizada con el nombre del usuario
+// 3. Rol mostrado (Admin/Usuario)
+// 4. Contenedor vacío para las reservas
+// 5. Botón "+ Nueva Reserva" ⭐ NUEVO
+```
+
+#### Paso 2: Se ejecuta el controlador
+```javascript
+// setTimeout(() => {
+//   homeController(); 
+// })
+
+// El controlador hace una petición GET:
+GET http://localhost:3001/reservations
+
+// Obtiene todas las reservas de la base de datos
+```
+
+#### Paso 3: Filtrado según el rol
+```javascript
+if (user.role === "admin") {
+  // Admin ve TODAS las reservas
+  filteredReservations = reservations
+} else {
+  // Usuario solo ve las suyas
+  filteredReservations = reservations.filter(
+    r => r.userId === user.id
+  )
+}
+```
+
+#### Paso 4: Se renderiza cada reserva
+```javascript
+// Para cada reserva filtrada:
+container.innerHTML = filteredReservations
+  .map(reservation => 
+    ReservationCard(reservation)  // Componente
+  )
+  .join("")
+```
+
+#### Paso 5: Se agregan event listeners
+```javascript
+// setupEventListeners() agrega handlers a:
+// - Botón "+ Nueva Reserva" ⭐ NUEVO
+// - Botones "Editar"
+// - Botones "Eliminar"
+// - Botones "Aprobar" (solo admin)
+// - Botones "Rechazar" (solo admin)
+```
+
+---
+
+## Crear Nueva Reserva
+
+### ✨ NUEVA FUNCIONALIDAD - Botón "+ Nueva Reserva"
+
+**Archivos modificados:**
+- `src/views/homeView.js` - Agregué el botón
+- `src/controllers/home.controller.js` - Agregué la función `showCreateModal`
+
+### 📋 Modal de Creación
+
+```
+┌─────────────────────────────────────────┐
+│        NUEVA RESERVA                     │
+├─────────────────────────────────────────┤
+│                                         │
+│ [Nombre del espacio...          ]      │
+│                                         │
+│ [Fecha: ________________]               │
+│                                         │
+│ Hora de inicio                          │
+│ [Hora: ________]                        │
+│                                         │
+│ Hora de finalización                    │
+│ [Hora: ________]                        │
+│                                         │
+│ [Motivo de la reserva...        ]      │
+│                                         │
+│  [CREAR RESERVA]  [CANCELAR]           │
+│                                         │
+└─────────────────────────────────────────┘
+```
+
+### 🔄 Paso a Paso de Crear Reserva
+
+#### Paso 1: Usuario hace clic en "+ Nueva Reserva"
+```javascript
+// En homeView.js agregué:
+<button 
+  id="newReservationBtn"
+  class="bg-emerald-600 hover:bg-emerald-700..."
+>
+  + Nueva Reserva
+</button>
+
+// El event listener ejecuta showCreateModal()
+```
+
+#### Paso 2: Se abre el modal
+```javascript
+// showCreateModal() crea un div con:
+modal.className = "fixed inset-0 bg-black bg-opacity-50..."
+// Esto cubre toda la pantalla con fondo oscuro
+// y muestra el formulario en el centro
+```
+
+#### Paso 3: Usuario completa los datos
+```javascript
+// Los campos son:
+{
+  workspace: "Sala A",          // Nombre del espacio
+  date: "2026-01-20",           // Fecha seleccionada
+  startHour: "14:00",           // Hora inicio
+  endHour: "15:30",             // Hora fin
+  reason: "Reunión con cliente" // Motivo
+}
+```
+
+#### Paso 4: Validación
+```javascript
+// Antes de enviar, se valida:
+if (data.endHour <= data.startHour) {
+  alert("La hora de finalización debe ser mayor que la de inicio")
+  return // No continúa
+}
+```
+
+#### Paso 5: Se agregan datos automáticos
+```javascript
+// El controlador agrega automáticamente:
+data.userId = user.id        // Quién crea (usuario actual)
+data.status = "pending"      // Estado inicial
+```
+
+#### Paso 6: Se envía a la API
+```javascript
+// POST request a:
+POST http://localhost:3001/reservations
+Body: {
+  workspace: "Sala A",
+  date: "2026-01-20",
+  startHour: "14:00",
+  endHour: "15:30",
+  reason: "Reunión con cliente",
+  userId: "2",
+  status: "pending"
+}
+
+// json-server genera automáticamente un ID único
+```
+
+#### Paso 7: Se actualiza la vista
+```javascript
+// Después de crear:
+modal.remove()                    // Cierra el modal
+await homeController()            // Recarga la lista
+alert("¡Reserva creada exitosamente!")
+```
+
+#### Paso 8: Reserva aparece en la lista
+```javascript
+// La nueva reserva se muestra como:
+┌──────────────────────────────┐
+│ Sala A                  PENDING│
+│                               │
+│ Fecha: 2026-01-20             │
+│ Horario: 14:00 - 15:30        │
+│ Motivo: Reunión con cliente   │
+│                               │
+│ [Editar] [Eliminar]           │
+└──────────────────────────────┘
+```
+
+---
+
+## Editar Reserva
+
+### ✏️ Modal de Edición
+
+```
+┌─────────────────────────────────────────┐
+│        EDITAR RESERVA                    │
+├─────────────────────────────────────────┤
+│                                         │
+│ [Sala A                         ]      │
+│                                         │
+│ [2026-01-10                     ]      │
+│                                         │
+│ [09:00]                                 │
+│                                         │
+│ [10:00]                                 │
+│                                         │
+│ [Reunión de equipo...           ]      │
+│                                         │
+│  [GUARDAR]  [CANCELAR]                 │
+│                                         │
+└─────────────────────────────────────────┘
+```
+
+### 🔄 Paso a Paso de Editar Reserva
+
+#### Paso 1: Usuario hace clic en "Editar"
+```javascript
+// En ReservationCard.js, cada tarjeta tiene:
+<button data-edit-btn="${id}">Editar</button>
+
+// El event listener en setupEventListeners detecta esto
+```
+
+#### Paso 2: Validación de permisos
+```javascript
+// Solo puede editar si:
+// 1. Es admin, O
+// 2. Es dueño de la reserva Y está en estado "pending"
+
+const canEdit = 
+  userIsAdmin || (isOwner && status === "pending")
+
+if (!canEdit) {
+  alert("No tienes permiso para editar esta reserva")
+  return
+}
+```
+
+#### Paso 3: Se abre el modal con datos
+```javascript
+// showEditModal(reservation) pre-rellena el formulario:
+<input 
+  value="${reservation.workspace}"  // Ya tiene "Sala A"
+  ...
+/>
+
+// El usuario solo modifica lo que quiere
+```
+
+#### Paso 4: Usuario modifica los datos
+```javascript
+// Puede cambiar:
+// - workspace (nombre del espacio)
+// - date (fecha)
+// - startHour (hora inicio)
+// - endHour (hora fin)
+// - reason (motivo)
+
+// NO puede cambiar el userId o status
+```
+
+#### Paso 5: Se valida la hora
+```javascript
+// Misma validación que en crear:
+if (data.endHour <= data.startHour) {
+  alert("...")
+  return
+}
+```
+
+#### Paso 6: Se envía la actualización
+```javascript
+// PUT request a:
+PUT http://localhost:3001/reservations/1
+Body: {
+  workspace: "Sala B",        // Cambió
+  date: "2026-01-10",
+  startHour: "09:00",
+  endHour: "10:00",
+  reason: "Reunión modificada", // Cambió
+  userId: "1",
+  status: "pending"
+}
+```
+
+#### Paso 7: Se cierra y recarga
+```javascript
+modal.remove()
+await homeController()  // Recarga la lista con cambios
+```
+
+---
+
+## Aprobar/Rechazar Reserva (Solo Admin)
+
+### 👨‍💼 SOLO PARA ADMINISTRADOR
+
+**Archivos modificados:**
+- `src/controllers/home.controller.js` - Cambié a usar PATCH en lugar de PUT
+
+### 🎯 Problema que solucioné
+
+**Antes (PROBLEMA):**
+```javascript
+// PUT reemplazaba TODO el objeto
+await updateReservation(reservationId, {
+  ...reservation,  // Esto spreadeaba todos los campos
+  status: "approved"
+})
+// ❌ Problema: Podía perder datos en la transmisión
+```
+
+**Después (SOLUCIÓN):**
+```javascript
+// PATCH solo actualiza el campo status
+await http.patch(`/reservations/${reservationId}`, {
+  status: "approved"  // Solo este campo
+})
+// ✅ Los otros campos se mantienen intactos
+```
+
+### 📊 Diferencia PUT vs PATCH
+
+```
+┌─────────────────────────────────────────────────┐
+│ MÉTODO PUT (Reemplaza TODO)                     │
+├─────────────────────────────────────────────────┤
+│ Antes:                                          │
+│ {                                               │
+│   workspace: "Sala A",                          │
+│   date: "2026-01-10",                          │
+│   status: "pending"                            │
+│ }                                               │
+│                                                 │
+│ Envío:                                          │
+│ {                                               │
+│   status: "approved"                            │
+│ }                                               │
+│                                                 │
+│ ❌ Resultado: Se pierden workspace, date       │
+└─────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────┐
+│ MÉTODO PATCH (Actualiza solo campos enviados)   │
+├─────────────────────────────────────────────────┤
+│ Antes:                                          │
+│ {                                               │
+│   workspace: "Sala A",                          │
+│   date: "2026-01-10",                          │
+│   status: "pending"                            │
+│ }                                               │
+│                                                 │
+│ Envío:                                          │
+│ {                                               │
+│   status: "approved"                            │
+│ }                                               │
+│                                                 │
+│ ✅ Resultado: workspace y date se mantienen    │
+│    solo status cambia a "approved"              │
+└─────────────────────────────────────────────────┘
+```
+
+### 🔄 Paso a Paso de Aprobar Reserva
+
+#### Paso 1: Admin hace clic en "Aprobar"
+```javascript
+// En ReservationCard.js (solo para admin):
+${canApprove ? `
+  <button data-approve-btn="${id}">
+    Aprobar
+  </button>
+` : ''}
+```
+
+#### Paso 2: El controlador detecta el clic
+```javascript
+document.querySelectorAll("[data-approve-btn]")
+  .forEach(btn => {
+    btn.addEventListener("click", async (e) => {
+      const reservationId = btn.dataset.approveBtn
+      
+      // Continúa al Paso 3...
+    })
+  })
+```
+
+#### Paso 3: Se envía PATCH
+```javascript
+// ⭐ SOLUCIÓN QUE IMPLEMENTÉ:
+await http.patch(`/reservations/${reservationId}`, {
+  status: "approved"
+})
+
+// Esto actualiza json-server:
+// PATCH http://localhost:3001/reservations/1
+// Body: { status: "approved" }
+```
+
+#### Paso 4: json-server actualiza solo el status
+```javascript
+// En db.json, la reserva cambia de:
+{
+  "id": "1",
+  "userId": "2",
+  "workspace": "Sala A",      // ✅ Se mantiene
+  "date": "2026-01-10",       // ✅ Se mantiene
+  "startHour": "09:00",       // ✅ Se mantiene
+  "endHour": "10:00",         // ✅ Se mantiene
+  "reason": "Reunión...",     // ✅ Se mantiene
+  "status": "pending"         // ❌ Cambia aquí
+}
+
+// A:
+{
+  "id": "1",
+  "userId": "2",
+  "workspace": "Sala A",      // ✅ Intacta
+  "date": "2026-01-10",       // ✅ Intacta
+  "startHour": "09:00",       // ✅ Intacta
+  "endHour": "10:00",         // ✅ Intacta
+  "reason": "Reunión...",     // ✅ Intacta
+  "status": "approved"        // ✅ Actualizado
+}
+```
+
+#### Paso 5: Se recarga la vista
+```javascript
+await homeController()
+
+// La reserva ahora muestra:
+┌──────────────────────────────┐
+│ Sala A              APPROVED ✅│
+│                               │
+│ Fecha: 2026-01-10             │
+│ Horario: 09:00 - 10:00        │
+│ Motivo: Reunión de equipo     │
+│                               │
+│ [Editar] [Eliminar]           │
+└──────────────────────────────┘
+```
+
+#### Paso 6: Lo mismo para "Rechazar"
+```javascript
+// El proceso es idéntico, solo cambia el status:
+await http.patch(`/reservations/${reservationId}`, {
+  status: "rejected"  // Aquí en lugar de "approved"
+})
+```
+
+---
+
+## Eliminar Reserva
+
+### 🗑️ Confirmación antes de Eliminar
+
+```
+¿Estás seguro de que deseas eliminar esta reserva?
+
+[ACEPTAR]  [CANCELAR]
+```
+
+### 🔄 Paso a Paso de Eliminar Reserva
+
+#### Paso 1: Usuario hace clic en "Eliminar"
+```javascript
+// En ReservationCard.js:
+${canDelete ? `
+  <button data-delete-btn="${id}">
+    Eliminar
+  </button>
+` : ''}
+
+// canDelete = admin O (propietario Y pending)
+```
+
+#### Paso 2: Se pide confirmación
+```javascript
+if (confirm("¿Estás seguro de que deseas eliminar esta reserva?")) {
+  // Continúa al Paso 3
+} else {
+  // Usuario canceló, no hace nada
+}
+```
+
+#### Paso 3: Se envía DELETE
+```javascript
+await deleteReservation(reservationId)
+
+// DELETE request a:
+DELETE http://localhost:3001/reservations/1
+// Sin body, solo elimina el ID
+```
+
+#### Paso 4: json-server elimina del db.json
+```javascript
+// La reserva se elimina completamente de la base de datos
+// reservations: [
+//   { id: "1", ... },  // ❌ Eliminada
+//   { id: "2", ... }   // ✅ Permanece
+// ]
+```
+
+#### Paso 5: Se recarga y desaparece
+```javascript
+await homeController()
+
+// La reserva ya no aparece en la lista del usuario
+```
+
+---
+
+## Estructura de Archivos
+
+### 📁 Árbol de directorios importante
+
+```
+src/
+├── api/
+│   └── http.js                    # Módulo de comunicación con API
+│
+├── components/
+│   ├── ReservationCard.js         # Componente de tarjeta de reserva
+│   └── Sidebar.js                 # Barra lateral de navegación
+│
+├── controllers/
+│   ├── home.controller.js         # ⭐ Aquí agregué showCreateModal()
+│   └── login.controller.js        # Lógica de login
+│
+├── services/
+│   └── reservation.service.js     # Funciones para llamar a API
+│
+├── views/
+│   ├── homeView.js                # ⭐ Aquí agregué botón "+ Nueva Reserva"
+│   ├── loginView.js               # Vista de login
+│   └── notFound.js                # Vista 404
+│
+├── router/
+│   └── router.js                  # Enrutador (History API)
+│
+├── utils.js                        # Funciones auxiliares (session, auth)
+├── main.js                         # Punto de entrada
+└── style.css                       # Estilos globales
+
+db.json                             # Base de datos (almacena usuarios y reservas)
+package.json                        # Dependencias y scripts
+vite.config.js                      # Configuración de Vite
+```
+
+### 📊 Flujo de datos
+
+```
+USUARIO
+   │
+   ▼
+┌─────────────────┐
+│ VIEW            │ (homeView.js)
+│ - Estructura    │ Renderiza HTML con:
+│   HTML          │ - Sidebar
+│ - Contenedores  │ - Bienvenida
+│ - Botones       │ - Lista de reservas
+└────────┬────────┘ - Botón "+ Nueva Reserva" ⭐
+         │
+         ▼
+┌─────────────────┐
+│ CONTROLLER      │ (home.controller.js)
+│ - Carga datos   │ Maneja eventos:
+│ - Event listen. │ - Clic en "+ Nueva Reserva"
+│ - Validación    │ - Clic en "Editar"
+│ - Lógica        │ - Clic en "Aprobar"
+└────────┬────────┘ - Etc.
+         │
+         ▼
+┌─────────────────┐
+│ SERVICE         │ (reservation.service.js)
+│ - Llamadas API  │ Realiza peticiones HTTP
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ API HTTP        │ (http.js)
+│ - GET/POST/etc  │ Comunica con json-server
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ JSON SERVER     │ (localhost:3001)
+│ - GET /reserv.  │ Almacena y sirve datos
+│ - POST /reserv. │ de db.json
+│ - PATCH /reserv.│
+│ - DELETE /reserv│
+└─────────────────┘
+```
+
+---
+
+## 🎬 Ejemplo Completo: Crear y Aprobar una Reserva
+
+### Escenario
+1. Usuario crea una reserva
+2. Admin la aprueba
+3. Se actualiza correctamente (sin perder datos)
+
+### Paso a Paso Completo
+
+```
+┌──────────────────────────────────────────────────────────┐
+│ PASO 1: USUARIO HACE CLIC EN "+ NUEVA RESERVA"          │
+├──────────────────────────────────────────────────────────┤
+│ → homeView.js: Se muestra el botón                       │
+│ → home.controller.js: Se ejecuta showCreateModal()      │
+│ → Modal aparece en pantalla                              │
+└──────────────────────────────────────────────────────────┘
+                           │
+                           ▼
+┌──────────────────────────────────────────────────────────┐
+│ PASO 2: USUARIO COMPLETA EL FORMULARIO                  │
+├──────────────────────────────────────────────────────────┤
+│ workspace: "Sala de Conferencias"                        │
+│ date: "2026-02-15"                                       │
+│ startHour: "10:00"                                       │
+│ endHour: "11:30"                                         │
+│ reason: "Presentación al cliente"                        │
+└──────────────────────────────────────────────────────────┘
+                           │
+                           ▼
+┌──────────────────────────────────────────────────────────┐
+│ PASO 3: VALIDACIÓN                                       │
+├──────────────────────────────────────────────────────────┤
+│ ✅ Todos los campos están completos                      │
+│ ✅ endHour (11:30) > startHour (10:00)                  │
+│ → Continúa al siguiente paso                             │
+└──────────────────────────────────────────────────────────┘
+                           │
+                           ▼
+┌──────────────────────────────────────────────────────────┐
+│ PASO 4: AGREGAR DATOS AUTOMÁTICOS                        │
+├──────────────────────────────────────────────────────────┤
+│ userId: "2" (del localStorage)                           │
+│ status: "pending" (inicial)                              │
+└──────────────────────────────────────────────────────────┘
+                           │
+                           ▼
+┌──────────────────────────────────────────────────────────┐
+│ PASO 5: ENVIAR A LA API                                  │
+├──────────────────────────────────────────────────────────┤
+│ POST http://localhost:3001/reservations                 │
+│ Body:                                                    │
+│ {                                                        │
+│   "workspace": "Sala de Conferencias",                  │
+│   "date": "2026-02-15",                                 │
+│   "startHour": "10:00",                                 │
+│   "endHour": "11:30",                                   │
+│   "reason": "Presentación al cliente",                  │
+│   "userId": "2",                                         │
+│   "status": "pending"                                    │
+│ }                                                        │
+└──────────────────────────────────────────────────────────┘
+                           │
+                           ▼
+┌──────────────────────────────────────────────────────────┐
+│ PASO 6: JSON SERVER GENERA ID Y ALMACENA                │
+├──────────────────────────────────────────────────────────┤
+│ json-server retorna:                                     │
+│ {                                                        │
+│   "id": "3",              ← AUTO-GENERADO                │
+│   "workspace": "Sala de Conferencias",                  │
+│   "date": "2026-02-15",                                 │
+│   "startHour": "10:00",                                 │
+│   "endHour": "11:30",                                   │
+│   "reason": "Presentación al cliente",                  │
+│   "userId": "2",                                         │
+│   "status": "pending"                                    │
+│ }                                                        │
+│ Se guarda en db.json                                     │
+└──────────────────────────────────────────────────────────┘
+                           │
+                           ▼
+┌──────────────────────────────────────────────────────────┐
+│ PASO 7: RECARGAR VISTA                                   │
+├──────────────────────────────────────────────────────────┤
+│ homeController() ejecuta:                                │
+│ 1. GET http://localhost:3001/reservations               │
+│ 2. Filtra por userId (usuario actual)                   │
+│ 3. Renderiza cada reserva con ReservationCard()         │
+│ 4. Se ve la nueva reserva en la lista                    │
+│                                                          │
+│ ┌────────────────────────────────────┐                  │
+│ │ Sala de Conferencias      PENDING  │                  │
+│ │                                    │                  │
+│ │ Fecha: 2026-02-15                 │                  │
+│ │ Horario: 10:00 - 11:30             │                  │
+│ │ Motivo: Presentación al cliente   │                  │
+│ │                                    │                  │
+│ │ [Editar] [Eliminar]               │                  │
+│ └────────────────────────────────────┘                  │
+└──────────────────────────────────────────────────────────┘
+                           │
+                           ▼
+┌──────────────────────────────────────────────────────────┐
+│ PASO 8: ADMIN INICIA SESIÓN                             │
+├──────────────────────────────────────────────────────────┤
+│ Admin@test.com / A123456                                 │
+│ → Va a /home                                             │
+│ → Ve TODAS las reservas (no filtradas)                   │
+│ → Ve la reserva de usuario con status PENDING            │
+└──────────────────────────────────────────────────────────┘
+                           │
+                           ▼
+┌──────────────────────────────────────────────────────────┐
+│ PASO 9: ADMIN HACE CLIC EN "APROBAR"                    │
+├──────────────────────────────────────────────────────────┤
+│ → home.controller.js detecta clic en [data-approve-btn] │
+│ → Ejecuta:                                               │
+│                                                          │
+│ await http.patch(                                        │
+│   `/reservations/3`,                                     │
+│   { status: "approved" }  ← ⭐ Solo esto                │
+│ )                                                        │
+└──────────────────────────────────────────────────────────┘
+                           │
+                           ▼
+┌──────────────────────────────────────────────────────────┐
+│ PASO 10: JSON SERVER ACTUALIZA                          │
+├──────────────────────────────────────────────────────────┤
+│ PATCH http://localhost:3001/reservations/3             │
+│ Body: { status: "approved" }                            │
+│                                                          │
+│ json-server usa PATCH, que significa:                   │
+│ "Actualiza SOLO los campos que envío"                   │
+│                                                          │
+│ El resultado en db.json:                                │
+│ {                                                        │
+│   "id": "3",                                             │
+│   "workspace": "Sala de Conferencias", ✅ Intacto      │
+│   "date": "2026-02-15",                ✅ Intacto      │
+│   "startHour": "10:00",                ✅ Intacto      │
+│   "endHour": "11:30",                  ✅ Intacto      │
+│   "reason": "Presentación...",         ✅ Intacto      │
+│   "userId": "2",                       ✅ Intacto      │
+│   "status": "approved"                 ✅ ACTUALIZADO   │
+│ }                                                        │
+└──────────────────────────────────────────────────────────┘
+                           │
+                           ▼
+┌──────────────────────────────────────────────────────────┐
+│ PASO 11: ADMIN VE LA ACTUALIZACIÓN                      │
+├──────────────────────────────────────────────────────────┤
+│ homeController() recarga:                                │
+│                                                          │
+│ ┌────────────────────────────────────┐                  │
+│ │ Sala de Conferencias    APPROVED ✅ │                  │
+│ │                                    │                  │
+│ │ Fecha: 2026-02-15                 │                  │
+│ │ Horario: 10:00 - 11:30             │                  │
+│ │ Motivo: Presentación al cliente   │                  │
+│ │                                    │                  │
+│ │ [Editar] [Eliminar]               │                  │
+│ └────────────────────────────────────┘                  │
+│                                                          │
+│ ✅ Todos los datos están intactos                        │
+│ ✅ El status cambió a "APPROVED"                        │
+│ ✅ La reserva no "desapareció"                          │
+└──────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 🎓 Resumen de lo que Implementé
+
+### ✅ Cambios Realizados
+
+1. **Botón "+ Nueva Reserva"**
+   - Archivo: `src/views/homeView.js`
+   - Agregué button con `id="newReservationBtn"`
+
+2. **Función showCreateModal()**
+   - Archivo: `src/controllers/home.controller.js`
+   - Crea y maneja el modal de creación
+   - Valida que endHour > startHour
+   - Agrega userId y status automáticamente
+   - Hace POST a `/reservations`
+
+3. **Event listener para el botón**
+   - Archivo: `src/controllers/home.controller.js`
+   - En `setupEventListeners()` agregué:
+   ```javascript
+   const newReservationBtn = document.getElementById("newReservationBtn")
+   if (newReservationBtn) {
+     newReservationBtn.addEventListener("click", showCreateModal)
+   }
+   ```
+
+4. **Corregí el problema de datos perdidos**
+   - Cambié de PUT a PATCH
+   - PUT reemplazaba todo → PATCH solo actualiza status
+   - Importé `http` del módulo `api`
+   ```javascript
+   import { http } from "@/api/http"
+   ```
+
+### 🚀 Funcionalidades Completas
+
+- ✅ Crear reservas
+- ✅ Ver reservas (filtradas por rol)
+- ✅ Editar reservas
+- ✅ Eliminar reservas
+- ✅ Aprobar/Rechazar (admin)
+- ✅ Validaciones
+- ✅ Persistencia de datos
+- ✅ Sin recargas de página (SPA)
+
+---
+
+## 📞 Ayuda Rápida
+
+### Si algo no funciona:
+
+1. **Abre DevTools** (F12)
+2. **Ve a Console**
+3. **Busca mensajes de error**
+4. **Copia el error y busca en el código**
+
+### URLs útiles:
+
+- **Aplicación:** http://localhost:5173
+- **API (usuarios):** http://localhost:3001/users
+- **API (reservas):** http://localhost:3001/reservations
+
+### Credenciales:
+
+- **Admin:** admin@test.com / A123456
+- **Usuario:** user@test.com / A123456
+
+---
+
+**Documento generado:** 2026-06-05  
+**Versión:** 1.0
+
